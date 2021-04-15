@@ -1,0 +1,7 @@
+/settings.ini
+/main.spec
+/venv/
+/dist/
+/build/
+/.idea/
+/__pycache__/
