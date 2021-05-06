@@ -5,4 +5,4 @@ To your native language. Uses Google Translate, so don't expect to have an indep
 # How to compile
 Must Be In PyCharm for venv to work
 
-`python -m PyInstaller main.py`
+`python -m PyInstaller main.pyw`

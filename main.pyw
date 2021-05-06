@@ -112,7 +112,7 @@ class Application(QWidget):
 
         settingsToolButton = QToolButton()
         settingsToolButton.setText("Settings")
-        toolBar.addWidget(settingsToolButton)
+        # toolBar.addWidget(settingsToolButton)
 
         exitToolButton = QToolButton()
         exitToolButton.setText("Exit")
@@ -366,6 +366,7 @@ def prepend_line(file_name, line):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setStyleSheet(qdarkstyle.load_stylesheet())
+    popups.show_message("Please select your aafree log folder at:                              ", "<b>Documents -> AAFreeTo -> ChatLogs</b>")
     win = Application()
     win.show()
     sys.exit(app.exec_())
