@@ -1,38 +1,31 @@
+import os.path
 import sqlite3
 import sys
 from os import path
 from datetime import datetime
+from datetime import timedelta
 
 from PySide2 import QtWidgets
-from PySide2.QtCore import QTimer, QUrl, Qt, QSize, QEvent
+from PySide2.QtCore import QTimer, QUrl, Qt, QEvent
 from PySide2.QtGui import QFont
 import PySide2.QtGui
-from PySide2.QtWidgets import QApplication, QWidget, QTextEdit, QVBoxLayout, QPushButton, QLabel, QHBoxLayout, QMenuBar, \
+from PySide2.QtWidgets import QApplication, QWidget, QTextEdit, QVBoxLayout, QPushButton, QLabel, QHBoxLayout, \
     QToolBar, QToolButton, QSizePolicy, QMainWindow, QSizeGrip
 from PySide2.QtWebEngineWidgets import QWebEngineView
 import qdarkstyle
 from datetime_matcher import DatetimeMatcher
 import types
-from googletrans import Translator
+
+import popups
 
 fileModded = []
-file_path = r"D:\Users\Mitchell\Documents\AAFreeTo\ChatLogs\\"
 
 database_path = "data.db"
 closing = False
 message_index = 0
 canResize = False
 masterLedger = []
-start_translate = False
-userLanguage = "en"
-
-# Bug Report
-# Error when day switches. New chat file isn't created on games end unless a restart of the client is performed
-# Program skips first message in file
-
-class AppRef:
-    def __init__(self):
-        self.DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S.%f'
+index_reset = True
 
 
 class SysFunctions:
@@ -88,8 +81,8 @@ class Application(QWidget):
         self.textEdit = QTextEdit()
         self.textEdit.setFont(QFont('Arial', 10))
         self.textEdit.setReadOnly(True)
-        self.autoTransButton = QPushButton("Automatic")
-        self.manualTransButton = QPushButton("Manual")
+        self.openTransButton = QPushButton("Translate")
+        self.pauseTransButton = QPushButton("Pause Chat")
         self.closeTransButton = QPushButton("Close")
         self.closeTransButton.setDisabled(True)
 
@@ -102,6 +95,8 @@ class Application(QWidget):
 
         self.browser = QWebEngineView()
         self.browser.setUrl(QUrl("https://translate.google.com/"))
+
+        self.chatIsPaused = False
 
         layout = QVBoxLayout()
         toolBar = QToolBar()
@@ -128,17 +123,19 @@ class Application(QWidget):
 
         layout2 = QHBoxLayout()
 
-        # layout2.addWidget(self.autoTransButton)
-        # layout2.addWidget(self.manualTransButton)
-        # layout2.addWidget(self.closeTransButton)
-        layout.addLayout(layout2)
-        layout.addWidget(self.browser)
-        self.setLayout(layout)
+        layout2.addWidget(self.openTransButton)
+        layout2.addWidget(self.pauseTransButton)
+        layout2.addWidget(self.closeTransButton)
 
+        layout.addLayout(layout2)
+
+        self.setLayout(layout)
+        layout.addWidget(self.browser)
         self.browser.setVisible(False)
 
         self.closeTransButton.clicked.connect(self.close_trans_clicked)
-        self.manualTransButton.clicked.connect(self.manual_trans_clicked)
+        self.pauseTransButton.clicked.connect(self.pause_chat_clicked)
+        self.openTransButton.clicked.connect(self.manual_trans_clicked)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.watch_file)
@@ -203,37 +200,41 @@ class Application(QWidget):
 
         return False
 
-    def translateMessage(self, message):
-        global userLanguage
-        translator = Translator()
-        lang = translator.detect(message).lang
-
-        if type(lang) != str:
-            lang = userLanguage
-
-        print("Language: " + lang)
-
-        if lang == userLanguage:
-            print("No trans")
-            return message
-
-        return translator.translate(message, dest=userLanguage, src=lang).text
-        print("trans")
-
     def watch_file(self):
+
+        if self.chatIsPaused: return None
+        global index_reset
         global file_path
         global message_index
         global masterLedger
-        global start_translate
 
-        today = str(datetime.today().date())
-        file = open(file_path + today + '.log', encoding='utf8', mode='r')
-        nonempty_lines = [line.strip("\n") for line in file if line != "\n"]
-        file.close()
+        today = datetime.today().date()
+        yesterday = today - timedelta(days=1)
+
+        if os.path.isfile(file_path + str(today) + '.log'):
+            file = open(file_path + str(today) + '.log', encoding='utf8', mode='r')
+            nonempty_lines = [line.strip("\n") for line in file if line != "\n"]
+            file.close()
+            if index_reset:
+                print("Date reset")
+                message_index = 0
+                index_reset = False
+        elif os.path.isfile(file_path + str(yesterday) + '.log'):
+            file = open(file_path + str(yesterday) + '.log', encoding='utf8', mode='r')
+            nonempty_lines = [line.strip("\n") for line in file if line != "\n"]
+            file.close()
+            index_reset = True
+            today = yesterday
+        else:
+            self.hide()
+            popups.show_error("Could not find a log file to parse.",
+                              "Fixes: \n\n- Make sure you selected the correct directory\n\n- Try restarting you game client and launcher")
+            return None
+
         line_count = len(nonempty_lines)
 
         if message_index < line_count:
-            file = open(file_path + today + '.log', encoding='utf8', mode='r')
+            file = open(file_path + str(today) + '.log', encoding='utf8', mode='r')
             content = file.readlines()
         while message_index < line_count:
             message = types.SimpleNamespace()
@@ -270,13 +271,16 @@ class Application(QWidget):
                         message.type = message.type.replace(" | ", "")
                         message.type += "]:"
                         break
-                    message.type = "[" + chat_type + "]:"
+                    message.type = datetime_matcher.sub("%Y-%m-%d %H:%M:%S", "", x[0], 1)
+                    message.type = message.type.replace(" | ", "")
+                    remove_str = "[" + chat_type + ": "
+                    message.type = message.type.replace(remove_str, "")
+
+                    message.type = "[" + chat_type + ": " + message.type + "]:"
                     break
             message.type = "Whisper" if message.type is None else message.type
 
             message.content = message.content.strip()
-
-
 
             # self.sysFunctions.db_connection.execute("INSERT INTO MESSAGES (DATE, CHANNEL, PLAYER, MESSAGE) \
             #       VALUES ('%s', '%s', '%s', '%s')" % ())
@@ -284,15 +288,16 @@ class Application(QWidget):
 
             # Break down message strings to insert values into database, add time
 
-
-            if not start_translate:
-                message.display_text = message.type + " " + message.content
-            else:
-                message.display_text = message.type + " " + self.translateMessage(message.content)
+            message.display_text = message.type + " " + message.content
 
             if message_index > 0:
                 old_message = masterLedger[-1].display_text
                 if old_message != message.display_text:
+                    print(message.display_text)
+                    self.textEdit.append(message.display_text)
+                    self.textEdit.moveCursor(PySide2.QtGui.QTextCursor.End)
+            if message_index == 0:
+                if message.raw_message:
                     print(message.display_text)
                     self.textEdit.append(message.display_text)
                     self.textEdit.moveCursor(PySide2.QtGui.QTextCursor.End)
@@ -301,11 +306,6 @@ class Application(QWidget):
             message_index += 1
 
         file.close()
-        # if not start_translate:
-        #     print("Testing translate")
-        #     print(self.translateMessage("Привет"))
-        start_translate = True
-
 
     def closeEvent(self, event):
         global closing
@@ -323,15 +323,44 @@ class Application(QWidget):
 
     def close_trans_clicked(self):
         self.browser.setVisible(False)
+        self.textEdit.setVisible(True)
         self.closeTransButton.setDisabled(True)
-        self.manualTransButton.setDisabled(False)
-        # self.resize(500, 400)
+        # self.pauseTransButton.setDisabled(False)
+        self.openTransButton.setDisabled(False)
+        self.resize(500, 400)
+
+    def pause_chat_clicked(self):
+        if self.chatIsPaused:
+            self.chatIsPaused = False
+            self.pauseTransButton.setText("Pause Chat")
+        else:
+            self.chatIsPaused = True
+            self.pauseTransButton.setText("Unpause Chat")
 
     def manual_trans_clicked(self):
         self.browser.setVisible(True)
+        # self.textEdit.setVisible(False)
         self.closeTransButton.setDisabled(False)
-        self.manualTransButton.setDisabled(True)
-        # self.resize(500, 700)
+        # self.pauseTransButton.setDisabled(True)
+        self.openTransButton.setDisabled(True)
+        self.resize(500, 700)
+
+
+def prepend_line(file_name, line):
+    """ Insert given string as a new line at the beginning of a file """
+    # define name of temporary dummy file
+    dummy_file = file_name + '.bak'
+    # open original file in read mode and dummy file in write mode
+    with open(file_name, 'r') as read_obj, open(dummy_file, 'w') as write_obj:
+        # Write given line to the dummy file
+        write_obj.write(line + '\n')
+        # Read lines from original file one by one and append them to the dummy file
+        for line in read_obj:
+            write_obj.write(line)
+    # remove original file
+    os.remove(file_name)
+    # Rename dummy file as the original file
+    os.rename(dummy_file, file_name)
 
 
 if __name__ == '__main__':
