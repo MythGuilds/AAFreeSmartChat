@@ -20,3 +20,5 @@ I’m extremely tired of people asking this question and arguing with me when I 
 
 
 4. I refuse to release a product that breaks the more it’s used, even if you put the translation API as a side feature. If you would like to fork my code and make your own buggy version of this program, feel free to.
+
+#### Note: There is a small group of people that, for whatever reason, are not effected by the API block. At least that is their claim. Please remember, you are 1 of like 3 people. I don't have the time to cater to this group at the moment.
