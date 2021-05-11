@@ -17,6 +17,7 @@ from datetime_matcher import DatetimeMatcher
 import types
 
 import popups
+from settings import SettingsWindow
 
 fileModded = []
 
@@ -77,6 +78,9 @@ class Application(QWidget):
         self.installEventFilter(self)
 
         self.setWindowOpacity(1.0)
+        self.defaultUnfocusOpacity = 0.5
+
+        self.settingsWindow = SettingsWindow(self)
 
         self.textEdit = QTextEdit()
         self.textEdit.setFont(QFont('Arial', 10))
@@ -112,7 +116,8 @@ class Application(QWidget):
 
         settingsToolButton = QToolButton()
         settingsToolButton.setText("Settings")
-        # toolBar.addWidget(settingsToolButton)
+        settingsToolButton.clicked.connect(self.showSettings)
+        toolBar.addWidget(settingsToolButton)
 
         exitToolButton = QToolButton()
         exitToolButton.setText("Exit")
@@ -148,6 +153,10 @@ class Application(QWidget):
             grip = QSizeGrip(self)
             grip.resize(self.gripSize, self.gripSize)
             self.grips.append(grip)
+
+    def showSettings(self):
+        self.hide()
+        self.settingsWindow.show()
 
     def forceQuit(self):
         app.quit()
@@ -192,11 +201,11 @@ class Application(QWidget):
         if event.type() == QEvent.WindowActivate:
             self.setWindowOpacity(1.0)
         elif event.type() == QEvent.WindowDeactivate:
-            self.setWindowOpacity(0.5)
+            self.setWindowOpacity(self.defaultUnfocusOpacity)
         elif event.type() == QEvent.FocusIn:
             self.setWindowOpacity(1.0)
         elif event.type() == QEvent.FocusOut:
-            self.setWindowOpacity(0.5)
+            self.setWindowOpacity(self.defaultUnfocusOpacity)
 
         return False
 
